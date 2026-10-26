@@ -26,6 +26,23 @@ fi
 git -C "$BUILD_ROOT" apply --check --3way "$PATCH_FILE"
 git -C "$BUILD_ROOT" apply --3way "$PATCH_FILE"
 
+# GitHub runners already expose Rust on PATH. The dependency's optional
+# cargo/env loader exits under nounset on this runner; verify tools and avoid
+# loading that environment a second time. Keep all compilation steps intact.
+command -v cargo
+command -v rustup
+cargo --version
+rustc --version
+python3 - "$BUILD_ROOT/build-ios.sh" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+source = path.read_text()
+loader = 'source "$HOME/.cargo/env" 2>/dev/null || true'
+assert loader in source, 'Upstream Rust environment loader changed'
+path.write_text(source.replace(loader, '# Rust is already configured by the CI runner.', 1))
+PY
+
 "$BUILD_ROOT/build-ios.sh"
 
 rm -rf "$ROOT/Vendor/AirCard/AirliftFFI.xcframework"
